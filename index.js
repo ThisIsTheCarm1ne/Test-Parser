@@ -33,11 +33,9 @@ async function scrapePage(URL, region) {
   // If exists - returns text inside element
   // If not - returns - null
   async function extractDataFromElements(selector) {
-    const element = await page.waitForSelector(selector, {
-      visible: true,
-    });
+    const element = await safeQuerySelector(selector);
 
-    if (!element) {
+    if (element === null) {
       return null;
     }
 
@@ -47,6 +45,17 @@ async function scrapePage(URL, region) {
     return text.match(/\d+(\.\d+)?/)[0];
   }
 
+  // helper Function that detects if the element exists
+  async function safeQuerySelector(selector) {
+    try {
+      await page.waitForSelector(selector, { timeout: 30000 });
+      return await page.$(selector); // Return the element handle if found
+    } catch (error) {
+      console.log(`No element found for selector: ${selector}`);
+      return null
+    }
+  }
+
   // Changes region on selected
   // by clicking on div
   // and accessing popup
@@ -54,15 +63,11 @@ async function scrapePage(URL, region) {
     visible: true,
   });
 
-  await page.screenshot( {path: 'first-screenshot.jpg', fullPage: true} );
-
   await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
 
   await page.evaluate(() => {
     document.querySelector('.Region_region__6OUBn').click();
   });
-
-  await page.screenshot( {path: 'second-screenshot.jpg', fullPage: true} );
 
   await page.waitForSelector('.UiRegionListBase_list__cH0fK', {
     visible: true,
@@ -81,7 +86,6 @@ async function scrapePage(URL, region) {
     const regionText = await regionFromList.evaluate(el => el.textContent.trim());
 
     if (regionText === region) {
-      await page.screenshot( {path: 'third-screenshot.jpg', fullPage: true} );
       await page.evaluate(element => {
         element.click();
       }, regionFromList);
@@ -90,8 +94,12 @@ async function scrapePage(URL, region) {
     }
   }
 
-  const price = await extractDataFromElements('.ProductPage_buyBlockDesktop__PIIyz > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > span:nth-child(2)');
+  let price = await extractDataFromElements('.ProductPage_buyBlockDesktop__PIIyz > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > span:nth-child(2)');
   const priceOld = await extractDataFromElements('.ProductPage_buyBlockDesktop__PIIyz > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > span:nth-child(1)');
+  // if there is no discount - it should select through alternative css selector
+  if (price === null) {
+    price = await extractDataFromElements('.ProductPage_buyBlockDesktop__PIIyz > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > span:nth-child(1)');
+  }
   const rating = await extractDataFromElements('div.Summary_reviewsContainer__qTWIu:nth-child(6) > div:nth-child(1) > div:nth-child(1)');
   const reviewCount = await extractDataFromElements('div.Summary_reviewsContainer__qTWIu:nth-child(7) > div:nth-child(1) > div:nth-child(1)');
 
